@@ -1,12 +1,12 @@
 """
-slice_intent_eval.py - Slice evaluation for intent variants.
+slice_intent_eval.py - 意图变体的切片评估。
 
-Evaluates on specific user slices:
-  - short_history: users in bottom 33% by history length
-  - cold_start: users with fewer than 5 interactions
-  - session_drift: users with category switch in last 3 items
+在特定用户切片上进行评估：
+  - short_history：历史长度排在末尾 33% 的用户
+  - cold_start：交互少于 5 次的用户
+  - session_drift：最后 3 个物品中类别发生切换的用户
 
-Reports per-slice HR/NDCG for each intent variant.
+报告每个意图变体在每个切片上的 HR/NDCG。
 """
 
 import json
@@ -40,11 +40,11 @@ logger = logging.getLogger(__name__)
 
 def identify_slices(sessions: List[Dict]) -> Dict[str, List[int]]:
     """
-    Identify user slices based on session properties.
+    基于会话属性识别用户切片。
 
-    Returns dict mapping slice_name -> list of session indices.
+    返回切片名称 -> 会话索引列表的字典。
     """
-    # Compute per-user history lengths
+    # 计算每个用户的历史长度
     user_history_len = defaultdict(list)
     for i, s in enumerate(sessions):
         uid = s.get("user_id", "")
@@ -53,7 +53,7 @@ def identify_slices(sessions: List[Dict]) -> Dict[str, List[int]]:
             "session_len": len(s.get("item_ids", [])),
         })
 
-    # Short-history: users in bottom 33% by avg history length
+    # Short-history（短历史）：按平均历史长度排在末尾 33% 的用户
     user_avg_len = {}
     for uid, entries in user_history_len.items():
         user_avg_len[uid] = np.mean([e["session_len"] for e in entries])
@@ -62,20 +62,20 @@ def identify_slices(sessions: List[Dict]) -> Dict[str, List[int]]:
     threshold_idx = max(1, int(len(sorted_users) * 0.33))
     short_history_users = set(u[0] for u in sorted_users[:threshold_idx])
 
-    # Cold-start: users with fewer than 5 total interactions
+    # Cold-start（冷启动）：总交互少于 5 次的用户
     cold_start_users = set()
     for uid, entries in user_history_len.items():
         total_interactions = sum(e["session_len"] for e in entries)
         if total_interactions < 5:
             cold_start_users.add(uid)
 
-    # Session-drift: category switch in last 3 items
+    # Session-drift（会话漂移）：最后 3 个物品中类别发生切换
     session_drift_indices = set()
     for i, s in enumerate(sessions):
         categories = s.get("categories", [])
         if len(categories) >= 3:
             last_3 = categories[-3:]
-            # Drift if the last 3 categories are not all the same
+            # 如果最后 3 个类别不完全相同则视为漂移
             if len(set(last_3)) > 1:
                 session_drift_indices.add(i)
 
@@ -131,25 +131,25 @@ def main():
     )
     args = parser.parse_args()
 
-    # Load sessions
+    # 加载会话
     sessions = []
     with open(args.sessions, "r", encoding="utf-8") as f:
         for line in f:
             sessions.append(json.loads(line.strip()))
     logger.info(f"Loaded {len(sessions)} sessions")
 
-    # Generate session IDs
+    # 生成会话 ID
     for s in sessions:
         s["_session_id"] = _get_session_id(s)
 
-    # Load splits
+    # 加载划分
     if args.split_file and os.path.exists(args.split_file):
         protocol = SplitProtocol.load(args.split_file)
     else:
         protocol = SplitProtocol(seed=args.seed)
         protocol.assign_splits(sessions)
 
-    # Get test sessions
+    # 获取测试会话
     test_session_indices = [
         i for i, s in enumerate(sessions)
         if protocol.get_split(s) == "test"
@@ -157,10 +157,10 @@ def main():
     test_sessions = [sessions[i] for i in test_session_indices]
     logger.info(f"Test sessions: {len(test_sessions)}")
 
-    # Identify slices
+    # 识别切片
     slices = identify_slices(sessions)
 
-    # Filter slices to test sessions only
+    # 将切片过滤为仅测试会话
     test_idx_set = set(test_session_indices)
     test_slices = {}
     for slice_name, indices in slices.items():
@@ -171,7 +171,7 @@ def main():
             test_slices[slice_name] = test_slice_indices
             logger.info(f"  {slice_name} in test: {len(test_slice_indices)}")
 
-    # Load labels and results
+    # 加载标签和结果
     label_map = {}
     if args.labels and os.path.exists(args.labels):
         with open(args.labels, "r", encoding="utf-8") as f:
@@ -182,7 +182,7 @@ def main():
     minimind_map = load_results(args.minimind_results) if args.minimind_results else {}
     mlp_map = load_results(args.mlp_results) if args.mlp_results else {}
 
-    # Evaluate per slice per variant
+    # 按切片和变体进行评估
     all_results = {}
     variant_generators = {
         "no_intent": (no_intent, {}),
@@ -215,9 +215,9 @@ def main():
             )
             all_results[slice_name][variant_name] = results
 
-    # Print results
+    # 打印结果
     print("\n" + "=" * 100)
-    print("  Slice Evaluation Results")
+    print("  切片评估结果")
     print("=" * 100)
 
     for slice_name in ["all", "short_history", "cold_start", "session_drift"]:
@@ -242,7 +242,7 @@ def main():
 
     print("\n" + "=" * 100)
 
-    # Save results
+    # 保存结果
     os.makedirs(os.path.dirname(args.output) or ".", exist_ok=True)
     with open(args.output, "w", encoding="utf-8") as f:
         json.dump(all_results, f, ensure_ascii=False, indent=2)

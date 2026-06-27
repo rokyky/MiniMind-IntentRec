@@ -1,11 +1,11 @@
 """
-eval_intent_student.py - Evaluate MiniMind intent generator.
+eval_intent_student.py - 评估 MiniMind 意图生成器。
 
-Reports:
-  - JSON valid rate (is the output parseable JSON?)
-  - Schema compliance (does it match intent taxonomy schema?)
-  - Intent match accuracy vs teacher labels (exact + semantic)
-  - Inference latency (avg, p95)
+报告：
+  - JSON 有效比例（输出是否为可解析的 JSON？）
+  - 模式合规性（是否匹配意图分类体系模式？）
+  - 与教师标签的意图匹配准确率（精确 + 语义）
+  - 推理延迟（平均、p95）
 """
 
 import json
@@ -31,7 +31,7 @@ logger = logging.getLogger(__name__)
 
 
 def build_prompt(session: dict) -> str:
-    """Build the generation prompt for a session."""
+    """为会话构建生成提示。"""
     titles = session.get("item_titles", [])
     categories = session.get("categories", [])
     timestamps = session.get("timestamps", None)
@@ -53,14 +53,14 @@ def load_model(
     use_moe: bool = False,
     device: str = "cpu",
 ):
-    """Load MiniMind model with optional LoRA weights."""
+    """加载 MiniMind 模型及可选的 LoRA 权重。"""
     config = MiniMindConfig(
         hidden_size=hidden_size,
         num_hidden_layers=num_hidden_layers,
         use_moe=use_moe,
     )
     model = MiniMindForCausalLM(config)
-    # Load base weights
+    # 加载基础权重
     moe_suffix = "_moe" if use_moe else ""
     weight_path = os.path.join(model_path, f"../out/full_sft_{hidden_size}{moe_suffix}.pth")
     if os.path.exists(weight_path):
@@ -70,7 +70,7 @@ def load_model(
     else:
         logger.warning(f"Base weights not found at {weight_path}, using random init")
 
-    # Apply and load LoRA
+    # 应用并加载 LoRA
     if lora_path and os.path.exists(lora_path):
         apply_lora(model)
         load_lora(model, lora_path)
@@ -82,13 +82,13 @@ def load_model(
 
 def extract_intent_from_response(response: str) -> Tuple[bool, dict, str]:
     """
-    Try to parse JSON from the model response.
+    尝试从模型响应中解析 JSON。
 
-    Returns (parse_success, intent_dict, raw_response).
+    返回 (parse_success, intent_dict, raw_response)。
     """
-    # Try to extract JSON from the response
+    # 尝试从响应中提取 JSON
     response = response.strip()
-    # Remove markdown code fences if present
+    # 如果存在 Markdown 代码围栏则移除
     if "```json" in response:
         response = response.split("```json")[1].split("```")[0].strip()
     elif "```" in response:
@@ -98,7 +98,7 @@ def extract_intent_from_response(response: str) -> Tuple[bool, dict, str]:
         intent = json.loads(response)
         return True, intent, response
     except json.JSONDecodeError:
-        # Try to find a JSON-like substring
+        # 尝试查找类似 JSON 的子字符串
         start = response.find("{")
         end = response.rfind("}")
         if start != -1 and end != -1 and end > start:
@@ -111,15 +111,15 @@ def extract_intent_from_response(response: str) -> Tuple[bool, dict, str]:
 
 
 def compute_exact_match(pred_intent: dict, label_intent: dict) -> bool:
-    """Check if predicted primary_intent exactly matches label."""
+    """检查预测的 primary_intent 是否与标签完全匹配。"""
     return pred_intent.get("primary_intent") == label_intent.get("primary_intent")
 
 
 def compute_semantic_match(pred_intent: dict, label_intent: dict) -> bool:
     """
-    Check if predicted primary_intent is semantically valid:
-    either exact match, or if the label's primary appears in the
-    predicted secondary intents, or vice versa.
+    检查预测的 primary_intent 是否语义有效：
+    精确匹配，或者标签的主要意图出现在
+    预测的次要意图中，反之亦然。
     """
     pred_primary = pred_intent.get("primary_intent", "")
     label_primary = label_intent.get("primary_intent", "")
@@ -132,7 +132,7 @@ def compute_semantic_match(pred_intent: dict, label_intent: dict) -> bool:
         return True
     if label_primary in pred_secondary:
         return True
-    # Check domain-level match
+    # 检查领域级别匹配
     from src.intent_taxonomy import INTENT_TO_DOMAIN
     pred_domain = INTENT_TO_DOMAIN.get(pred_primary, "")
     label_domain = INTENT_TO_DOMAIN.get(label_primary, "")
@@ -153,7 +153,7 @@ def evaluate(
     system_prompt: str = None,
 ) -> Dict:
     """
-    Run evaluation on a set of sessions with ground truth labels.
+    在一组带有真实标签的会话上运行评估。
     """
     if system_prompt is None:
         system_prompt = get_system_prompt()
@@ -168,7 +168,7 @@ def evaluate(
         "errors": [],
     }
 
-    # Build session IDs for lookup
+    # 构建用于查找的会话 ID
     for s in sessions:
         uid = s.get("user_id", "")
         target = s.get("target_item", "")
@@ -191,7 +191,7 @@ def evaluate(
         )
         inputs = tokenizer(input_text, return_tensors="pt", truncation=True).to(device)
 
-        # Generate
+        # 生成
         start_time = time.time()
         with torch.no_grad():
             generated_ids = model.generate(
@@ -213,17 +213,17 @@ def evaluate(
         results["total"] += 1
         results["latencies"].append(elapsed)
 
-        # Parse JSON
+        # 解析 JSON
         parse_ok, intent, raw_response = extract_intent_from_response(response)
         if parse_ok:
             results["json_valid"] += 1
 
-            # Schema compliance
+            # 模式合规性
             is_valid, _ = validate_intent_label(intent)
             if is_valid:
                 results["schema_compliant"] += 1
 
-            # Intent match
+            # 意图匹配
             if compute_exact_match(intent, label):
                 results["exact_match"] += 1
             if compute_semantic_match(intent, label):
@@ -241,7 +241,7 @@ def evaluate(
 
 
 def print_results(results: Dict):
-    """Pretty-print evaluation results."""
+    """美观地打印评估结果。"""
     total = results["total"]
     print("\n" + "=" * 60)
     print("  MiniMind Intent Student Evaluation Report")
@@ -262,7 +262,7 @@ def print_results(results: Dict):
     print(f"  Exact Match (P):     {exact_rate:.2f}% ({results['exact_match']}/{total})")
     print(f"  Semantic Match:      {semantic_rate:.2f}% ({results['semantic_match']}/{total})")
 
-    # Latency
+    # 延迟
     latencies = results["latencies"]
     if latencies:
         avg_lat = sum(latencies) / len(latencies)
@@ -272,7 +272,7 @@ def print_results(results: Dict):
         print(f"\n  Latency (avg):        {avg_lat:.4f}s")
         print(f"  Latency (p95):        {p95_lat:.4f}s")
 
-    # Errors
+    # 错误
     if results["errors"]:
         print(f"\n  Parse Errors:         {len(results['errors'])}")
         for e in results["errors"][:5]:

@@ -1,15 +1,15 @@
 """
-compare_intent_variants.py - Compare recommendation performance across intent variants.
+compare_intent_variants.py - 比较跨意图变体的推荐性能。
 
-Variants compared:
-  - no intent (baseline)
-  - category-majority intent (heuristic)
-  - cluster intent (unsupervised)
-  - teacher LLM intent (upper bound)
-  - MiniMind-generated intent
-  - MLP distilled intent
+比较的变体：
+  - no intent（基线）
+  - category-majority intent（启发式）
+  - cluster intent（无监督）
+  - teacher LLM intent（上界）
+  - MiniMind 生成的意图
+  - MLP 蒸馏的意图
 
-Reports HR/NDCG/Recall for each variant.
+报告每个变体的 HR/NDCG/Recall。
 """
 
 import json
@@ -30,27 +30,27 @@ logging.basicConfig(level=logging.INFO, format="%(asctime)s [%(levelname)s] %(me
 logger = logging.getLogger(__name__)
 
 
-# ---- Intent Variant Generators ----
+# ---- 意图变体生成器 ----
 
 
 def no_intent(session: Dict) -> Dict:
-    """Baseline: no intent information."""
+    """基线：没有意图信息。"""
     return {"variant": "no_intent", "score": 0.0}
 
 
 def category_majority_intent(session: Dict) -> Dict:
-    """Heuristic: most frequent category in session determines intent domain."""
+    """启发式：会话中最频繁的类别决定意图领域。"""
     categories = session.get("categories", [])
     if not categories:
         return {"variant": "category_majority", "intent": "", "score": 0.0}
 
-    # Find most common category
+    # 查找最常见的类别
     cat_counts = Counter(categories)
     most_common_cat = cat_counts.most_common(1)[0][0]
     cat_lower = most_common_cat.lower()
     cat_words = set(cat_lower.split())
 
-    # Map category to the best matching taxonomy domain
+    # 将类别映射到最佳匹配的分类体系领域
     best_domain = None
     best_domain_score = 0
     from src.intent_taxonomy import INTENT_TAXONOMY
@@ -59,14 +59,14 @@ def category_majority_intent(session: Dict) -> Dict:
         domain_lower = domain_name.lower()
         domain_words = set(domain_lower.replace(" & ", " ").split())
         overlap = len(cat_words & domain_words)
-        # Also check if category string contains domain name or vice versa
+        # 也检查类别字符串是否包含领域名称，反之亦然
         if domain_lower in cat_lower or cat_lower in domain_lower:
             overlap += 2
         if overlap > best_domain_score:
             best_domain_score = overlap
             best_domain = domain_name
 
-    # If no domain match by words, try matching against sub_intents
+    # 如果通过单词未匹配到领域，尝试匹配子意图
     if best_domain is None:
         for domain_name, domain_info in INTENT_TAXONOMY.items():
             for sub_intent in domain_info["sub_intents"]:
@@ -78,11 +78,11 @@ def category_majority_intent(session: Dict) -> Dict:
             if best_domain:
                 break
 
-    # Fallback: use first domain
+    # 回退：使用第一个领域
     if best_domain is None and INTENT_TAXONOMY:
         best_domain = list(INTENT_TAXONOMY.keys())[0]
 
-    # Within the matched domain, select the best-matching sub-intent
+    # 在匹配的领域内，选择最佳匹配的子意图
     matched_intent = ""
     if best_domain:
         best_intent_score = 0
@@ -95,7 +95,7 @@ def category_majority_intent(session: Dict) -> Dict:
             if overlap > best_intent_score:
                 best_intent_score = overlap
                 matched_intent = sub_intent
-        # If no sub-intent matched, use the first one in the domain
+        # 如果没有匹配的子意图，使用该领域的第一个
         if not matched_intent:
             matched_intent = INTENT_TAXONOMY[best_domain]["sub_intents"][0]
 
@@ -110,15 +110,15 @@ def category_majority_intent(session: Dict) -> Dict:
 
 def cluster_intent(session: Dict) -> Dict:
     """
-    Unsupervised cluster-based intent.
-    Uses simple heuristic: cluster by category combination pattern.
+    基于无监督聚类的意图。
+    使用简单的启发式方法：按类别组合模式聚类。
     """
     categories = session.get("categories", [])
-    # Generate a simple cluster signature from categories
+    # 从类别生成简单的聚类签名
     cluster_sig = "_".join(sorted(set(categories)))[:50]
     cluster_id = abs(hash(cluster_sig)) % 100
 
-    # Map cluster to nearest intent label
+    # 将聚类映射到最近的意图标签
     items = session.get("item_titles", [])
     intent = ""
     max_score = 0.0
@@ -141,7 +141,7 @@ def cluster_intent(session: Dict) -> Dict:
 
 
 def teacher_intent(session: Dict, label_map: Dict) -> Dict:
-    """Teacher LLM intent (upper bound)."""
+    """教师 LLM 意图（上界）。"""
     sid = _get_session_id(session)
     label = label_map.get(sid) or label_map.get(session.get("user_id", ""))
     if label:
@@ -155,7 +155,7 @@ def teacher_intent(session: Dict, label_map: Dict) -> Dict:
 
 
 def minimind_intent(session: Dict, minimind_results: Dict) -> Dict:
-    """MiniMind-generated intent."""
+    """MiniMind 生成的意图。"""
     sid = _get_session_id(session)
     result = minimind_results.get(sid, {})
     intent = {}
@@ -173,7 +173,7 @@ def minimind_intent(session: Dict, minimind_results: Dict) -> Dict:
 
 
 def mlp_intent(session: Dict, mlp_results: Dict) -> Dict:
-    """MLP distilled intent."""
+    """MLP 蒸馏的意图。"""
     sid = _get_session_id(session)
     result = mlp_results.get(sid, {})
     top_intents = result.get("top_intents", [{"name": "", "confidence": 0.0}])
@@ -189,23 +189,23 @@ def mlp_intent(session: Dict, mlp_results: Dict) -> Dict:
 
 
 def _get_session_id(session: Dict) -> str:
-    """Generate consistent session ID."""
+    """生成一致的会话 ID。"""
     uid = session.get("user_id", "")
     target = session.get("target_item", "")
     last_ts = session.get("timestamps", [0])[-1] if session.get("timestamps") else 0
     return f"{uid}_{target}_{last_ts}"
 
 
-# ---- Ranking Metrics ----
+# ---- 排序指标 ----
 
 
 def compute_hr(ranked_items: List[str], target_item: str, k: int = 10) -> int:
-    """Hit Rate@K: 1 if target is in top-k, else 0."""
+    """命中率@K：如果目标在 top-k 中则为 1，否则为 0。"""
     return 1 if target_item in ranked_items[:k] else 0
 
 
 def compute_ndcg(ranked_items: List[str], target_item: str, k: int = 10) -> float:
-    """NDCG@K: Discounted cumulative gain at k."""
+    """NDCG@K：在 k 处的折损累计增益。"""
     for i, item in enumerate(ranked_items[:k]):
         if item == target_item:
             return 1.0 / np.log2(i + 2)  # Position 0 -> log2(2), position 1 -> log2(3), etc.
@@ -213,14 +213,14 @@ def compute_ndcg(ranked_items: List[str], target_item: str, k: int = 10) -> floa
 
 
 def compute_recall(ranked_items: List[str], target_items: List[str], k: int = 10) -> float:
-    """Recall@K: fraction of target items found in top-k."""
+    """召回率@K：在 top-k 中找到的目标物品的比例。"""
     if not target_items:
         return 0.0
     hits = sum(1 for t in target_items if t in ranked_items[:k])
     return hits / len(target_items)
 
 
-# ---- Main Comparison ----
+# ---- 主比较 ----
 
 
 def evaluate_variant(
@@ -230,14 +230,14 @@ def evaluate_variant(
     ks: List[int] = None,
 ) -> Dict:
     """
-    Evaluate a single intent variant's recommendation performance.
+    评估单个意图变体的推荐性能。
 
-    Note: In a real system, the ranker would use intent features
-    to influence item scores. Here we simulate with a simple
-    oracle: items matching the predicted intent get a boost.
+    注意：在实际系统中，排序器会使用意图特征
+    来影响物品分数。这里我们使用一个简单的
+    模拟：与预测意图匹配的物品获得提升。
 
-    For a proper evaluation, this would call the actual recommendation model.
-    This implementation provides a representative proxy for comparison.
+    要进行正确的评估，需要调用实际的推荐模型。
+    此实现为比较提供了有代表性的代理。
     """
     if ks is None:
         ks = [5, 10, 20]
@@ -263,28 +263,28 @@ def evaluate_variant(
         if not target_item:
             continue
 
-        # Simulated ranking: in a real system this would call the ranker
-        # For this comparison, we simulate ranking improvement from intent
+        # 模拟排序：在实际系统中这将会调用排序器
+        # 在此比较中，我们模拟意图带来的排序提升
         intent_score = pred.get("score", 0.0)
 
-        # Simulate item ranking: place target at position based on intent score
-        # Higher intent score -> better ranking for relevant items
+        # 模拟物品排序：根据意图分数将目标放在相应的位置
+        # 意图分数越高 -> 相关物品排序越靠前
         if intent_score > 0.5:
-            # Intent is relevant, target appears early
+            # 意图相关，目标出现在前面
             ranked = [target_item] + session.get("item_ids", [])[:19]
         elif intent_score > 0.2:
-            # Somewhat relevant, target appears mid-list
+            # 部分相关，目标出现在中间
             ranked = session.get("item_ids", [])[:5] + [target_item] + \
                      session.get("item_ids", [])[5:9]
         else:
-            # Not relevant, target is further down
+            # 不相关，目标靠后
             ranked = session.get("item_ids", [])[:10] + [target_item] + \
                      session.get("item_ids", [])[10:]
 
         for k in ks:
             hr_sums[k] += compute_hr(ranked, target_item, k)
             ndcg_sums[k] += compute_ndcg(ranked, target_item, k)
-            # For recall, treat the target as the only relevant item
+            # 对于召回率，将目标视为唯一相关物品
             recall_sums[k] += compute_recall(ranked, [target_item], k)
 
     for k in ks:
@@ -296,7 +296,7 @@ def evaluate_variant(
 
 
 def load_results(path: str) -> Dict:
-    """Load JSONL results from inference output."""
+    """从推理输出加载 JSONL 结果。"""
     results = {}
     if not os.path.exists(path):
         return results
@@ -340,25 +340,25 @@ def main():
     )
     args = parser.parse_args()
 
-    # Load sessions
+    # 加载会话
     sessions = []
     with open(args.sessions, "r", encoding="utf-8") as f:
         for line in f:
             sessions.append(json.loads(line.strip()))
     logger.info(f"Loaded {len(sessions)} sessions")
 
-    # Load splits
+    # 加载划分
     if args.split_file and os.path.exists(args.split_file):
         protocol = SplitProtocol.load(args.split_file)
     else:
         protocol = SplitProtocol(seed=args.seed)
         protocol.assign_splits(sessions)
 
-    # Get test sessions
+    # 获取测试会话
     test_sessions = [s for s in sessions if protocol.get_split(s) == "test"]
     logger.info(f"Test sessions: {len(test_sessions)}")
 
-    # Load labels for teacher intent
+    # 加载教师意图的标签
     label_map = {}
     if args.labels and os.path.exists(args.labels):
         with open(args.labels, "r", encoding="utf-8") as f:
@@ -366,36 +366,36 @@ def main():
                 entry = json.loads(line.strip())
                 label_map[entry.get("session_id", "")] = entry.get("intent", {})
 
-    # Load MiniMind and MLP results
+    # 加载 MiniMind 和 MLP 的结果
     minimind_map = load_results(args.minimind_results) if args.minimind_results else {}
     mlp_map = load_results(args.mlp_results) if args.mlp_results else {}
 
-    # Generate predictions for each variant
+    # 为每个变体生成预测
     variant_results = {}
 
     for session in test_sessions:
         sid = _get_session_id(session)
         session["_session_id"] = sid
 
-    # 1. No intent (baseline)
+    # 1. 无意图（基线）
     no_intent_preds = [no_intent(s) for s in test_sessions]
     variant_results["no_intent"] = evaluate_variant(
         "no_intent", no_intent_preds, test_sessions, args.ks
     )
 
-    # 2. Category-majority
+    # 2. Category-majority（按类别多数）
     cat_preds = [category_majority_intent(s) for s in test_sessions]
     variant_results["category_majority"] = evaluate_variant(
         "category_majority", cat_preds, test_sessions, args.ks
     )
 
-    # 3. Cluster intent
+    # 3. 聚类意图
     cluster_preds = [cluster_intent(s) for s in test_sessions]
     variant_results["cluster"] = evaluate_variant(
         "cluster", cluster_preds, test_sessions, args.ks
     )
 
-    # 4. Teacher (upper bound)
+    # 4. 教师（上界）
     if label_map:
         teacher_preds = [teacher_intent(s, label_map) for s in test_sessions]
         variant_results["teacher"] = evaluate_variant(
@@ -409,16 +409,16 @@ def main():
             "minimind", minimind_preds, test_sessions, args.ks
         )
 
-    # 6. MLP head
+    # 6. MLP 头
     if mlp_map:
         mlp_preds = [mlp_intent(s, mlp_map) for s in test_sessions]
         variant_results["mlp"] = evaluate_variant(
             "mlp", mlp_preds, test_sessions, args.ks
         )
 
-    # Print results
+    # 打印结果
     print("\n" + "=" * 80)
-    print("  Intent Variant Comparison - Aggregate Results")
+    print("  意图变体比较 - 汇总结果")
     print("=" * 80)
 
     header = f"{'Variant':<22}"
@@ -438,7 +438,7 @@ def main():
 
     print("=" * 80)
 
-    # Save results
+    # 保存结果
     os.makedirs(os.path.dirname(args.output) or ".", exist_ok=True)
     with open(args.output, "w", encoding="utf-8") as f:
         json.dump(variant_results, f, ensure_ascii=False, indent=2)

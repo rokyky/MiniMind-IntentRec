@@ -1,9 +1,9 @@
 """
-train_intent_head.py - Train MLP intent head on session embeddings.
+train_intent_head.py - 在会话嵌入上训练 MLP 意图头。
 
-Loads session embeddings and teacher labels, trains with cross-entropy
-or binary cross-entropy loss. Reports micro/macro F1, precision@k,
-recall@k, and calibration/ECE.
+加载会话嵌入和教师标签，使用交叉熵
+或二元交叉熵损失训练。报告微平均/宏平均 F1、precision@k、
+recall@k 和校准/ECE。
 """
 
 import json
@@ -27,7 +27,7 @@ logger = logging.getLogger(__name__)
 
 
 def load_embeddings(embeddings_path: str, metadata_path: str) -> Tuple[np.ndarray, List[Dict]]:
-    """Load numpy embeddings and JSONL metadata."""
+    """加载 numpy 嵌入和 JSONL 元数据。"""
     embeddings = np.load(embeddings_path)
     metadata = []
     with open(metadata_path, "r", encoding="utf-8") as f:
@@ -39,21 +39,21 @@ def load_embeddings(embeddings_path: str, metadata_path: str) -> Tuple[np.ndarra
 
 def load_labels(labels_path: str, session_ids: List[str]) -> np.ndarray:
     """
-    Load teacher labels and convert to one-hot intent vectors.
+    加载教师标签并转换为 one-hot 意图向量。
 
-    Returns numpy array of shape (n_sessions, n_intents).
+    返回形状为 (n_sessions, n_intents) 的 numpy 数组。
     """
     intent_to_idx = {intent: i for i, intent in enumerate(ALL_INTENTS)}
     n_intents = len(ALL_INTENTS)
 
-    # Load label entries
+    # 加载标签条目
     label_map = {}
     with open(labels_path, "r", encoding="utf-8") as f:
         for line in f:
             entry = json.loads(line.strip())
             label_map[entry.get("session_id", "")] = entry.get("intent", {})
 
-    # Also try alternate format where labels are keyed directly
+    # 也尝试另一种格式：标签直接用键索引
     if not label_map:
         with open(labels_path, "r", encoding="utf-8") as f:
             for line in f:
@@ -66,7 +66,7 @@ def load_labels(labels_path: str, session_ids: List[str]) -> np.ndarray:
     for i, sid in enumerate(session_ids):
         label = label_map.get(sid)
         if label is None:
-            # Try partial match: user_id only or user_id+target
+            # 尝试部分匹配：仅 user_id 或 user_id+target
             for key, val in label_map.items():
                 if key in sid or sid in key:
                     label = val
@@ -78,7 +78,7 @@ def load_labels(labels_path: str, session_ids: List[str]) -> np.ndarray:
                 labels[i, intent_to_idx[primary]] = 1.0
                 found += 1
 
-            # For multi-label, also mark secondary intents
+            # 对于多标签，也标记次要意图
             for sec in label.get("secondary_intents", []):
                 if sec in intent_to_idx:
                     labels[i, intent_to_idx[sec]] = 1.0
@@ -90,23 +90,23 @@ def load_labels(labels_path: str, session_ids: List[str]) -> np.ndarray:
 
 def compute_f1(pred: np.ndarray, target: np.ndarray) -> Dict:
     """
-    Compute micro and macro F1, precision, recall.
+    计算微平均和宏平均 F1、precision、recall。
 
     Args:
-        pred: Predicted probabilities or binary predictions.
-        target: Ground truth binary labels (one-hot).
+        pred: 预测概率或二值预测。
+        target: 真实标签的二值标签（one-hot）。
 
     Returns:
-        Dict with micro/macro F1, precision, recall.
+        包含微平均/宏平均 F1、precision、recall 的字典。
     """
-    # Convert to binary predictions (top-1 for softmax)
+    # 转换为二值预测（softmax 取 top-1）
     if pred.shape[1] > 1:
         pred_binary = np.zeros_like(pred)
         pred_binary[np.arange(len(pred)), pred.argmax(axis=1)] = 1
     else:
         pred_binary = (pred > 0.5).astype(np.float32)
 
-    # Per-class metrics
+    # 每个类别的指标
     n_classes = target.shape[1]
     tp = np.zeros(n_classes)
     fp = np.zeros(n_classes)
@@ -117,12 +117,12 @@ def compute_f1(pred: np.ndarray, target: np.ndarray) -> Dict:
         fp[c] = ((pred_binary[:, c] == 1) & (target[:, c] == 0)).sum()
         fn[c] = ((pred_binary[:, c] == 0) & (target[:, c] == 1)).sum()
 
-    # Micro
+    # 微平均
     micro_prec = tp.sum() / (tp.sum() + fp.sum() + 1e-10)
     micro_rec = tp.sum() / (tp.sum() + fn.sum() + 1e-10)
     micro_f1 = 2 * micro_prec * micro_rec / (micro_prec + micro_rec + 1e-10)
 
-    # Macro (average per class, ignore classes with no support)
+    # 宏平均（按类别平均，忽略无样本的类别）
     per_class_f1 = np.where(
         (tp + fp + fn) > 0,
         2 * tp / (2 * tp + fp + fn + 1e-10),
@@ -156,7 +156,7 @@ def compute_f1(pred: np.ndarray, target: np.ndarray) -> Dict:
 
 
 def compute_precision_at_k(pred: np.ndarray, target: np.ndarray, k: int = 5) -> float:
-    """Compute precision@k."""
+    """计算 precision@k。"""
     topk_indices = np.argsort(-pred, axis=1)[:, :k]
     hits = 0
     for i in range(len(pred)):
@@ -165,7 +165,7 @@ def compute_precision_at_k(pred: np.ndarray, target: np.ndarray, k: int = 5) -> 
 
 
 def compute_recall_at_k(pred: np.ndarray, target: np.ndarray, k: int = 5) -> float:
-    """Compute recall@k."""
+    """计算 recall@k。"""
     topk_indices = np.argsort(-pred, axis=1)[:, :k]
     recalls = []
     for i in range(len(pred)):
@@ -178,9 +178,9 @@ def compute_recall_at_k(pred: np.ndarray, target: np.ndarray, k: int = 5) -> flo
 
 def compute_ece(pred: np.ndarray, target: np.ndarray, n_bins: int = 10) -> float:
     """
-    Compute Expected Calibration Error.
+    计算期望校准误差（Expected Calibration Error）。
 
-    Only applicable for softmax (single-label) mode.
+    仅适用于 softmax（单标签）模式。
     """
     confidences = pred.max(axis=1)
     predictions = pred.argmax(axis=1)
@@ -207,7 +207,7 @@ def train_epoch(
     device: str,
     mode: str,
 ) -> float:
-    """Train for one epoch, return average loss."""
+    """训练一个 epoch，返回平均损失。"""
     model.train()
     total_loss = 0.0
     for x, y in loader:
@@ -215,7 +215,7 @@ def train_epoch(
         optimizer.zero_grad()
         logits = model.get_logits(x)
         if mode == "softmax":
-            # Cross-entropy: target is class index
+            # 交叉熵：目标是类别索引
             target = y.argmax(dim=1)
             loss = criterion(logits, target)
         else:
@@ -233,7 +233,7 @@ def evaluate(
     device: str,
     mode: str,
 ) -> Dict:
-    """Evaluate model, return metrics."""
+    """评估模型，返回指标。"""
     model.eval()
     all_preds = []
     all_targets = []

@@ -1,10 +1,10 @@
 """
-build_session_data.py - Construct session samples from user item sequences.
+build_session_data.py - 从用户物品序列构建会话样本。
 
-Reads user behavior data (item ids, titles, categories, timestamps),
-groups by user, sorts by timestamp, and creates sessions from recent N items per user.
-Each session output includes: user_id, item_ids, item_titles, categories,
-timestamps, target_item, and split_id.
+读取用户行为数据（物品 ID、标题、类别、时间戳），
+按用户分组，按时间戳排序，并从每个用户最近的 N 个物品创建会话。
+每个会话输出包括：user_id, item_ids, item_titles, categories,
+timestamps, target_item, 和 split_id。
 """
 
 import json
@@ -20,7 +20,7 @@ logger = logging.getLogger(__name__)
 
 
 def load_metadata(metadata_path: str) -> Dict[str, Dict]:
-    """Load item metadata (title, category) from JSONL."""
+    """从 JSONL 加载物品元数据（标题、类别）。"""
     metadata = {}
     with open(metadata_path, "r", encoding="utf-8") as f:
         for line in f:
@@ -36,7 +36,7 @@ def load_metadata(metadata_path: str) -> Dict[str, Dict]:
 
 
 def load_interactions(interactions_path: str, metadata: Dict[str, Dict]) -> List[Dict]:
-    """Load user-item interactions, enriching with metadata."""
+    """加载用户-物品交互数据，并用元数据丰富。"""
     sessions = []
     with open(interactions_path, "r", encoding="utf-8") as f:
         for line in f:
@@ -65,37 +65,37 @@ def build_sessions(
     test_ratio: float = 0.1,
 ) -> List[Dict]:
     """
-    Group interactions by user, sort by timestamp, create sliding-window sessions.
+    按用户将交互分组，按时间戳排序，创建滑动窗口会话。
 
-    Each session:
+    每个会话：
       - user_id
-      - item_ids: list of item ids in the session (history)
-      - item_titles: corresponding titles
-      - categories: corresponding categories
-      - timestamps: corresponding timestamps
-      - target_item: the next item after the session window
-      - split_id: 'train' | 'val' | 'test'
+      - item_ids：会话中的物品 ID 列表（历史）
+      - item_titles：对应的标题
+      - categories：对应的类别
+      - timestamps：对应的时间戳
+      - target_item：会话窗口后的下一个物品
+      - split_id：'train' | 'val' | 'test'
     """
-    # Group by user
+    # 按用户分组
     user_items = defaultdict(list)
     for rec in interactions:
         user_items[rec["user_id"]].append(rec)
 
-    # Sort each user's items by timestamp, deduplicate consecutive same-item
+    # 将每个用户的物品按时间戳排序，去重连续相同物品
     for user_id in user_items:
         user_items[user_id].sort(key=lambda x: x["timestamp"])
-        # Remove consecutive duplicates of same item_id
+        # 移除连续相同的 item_id
         deduped = []
         for rec in user_items[user_id]:
             if not deduped or rec["item_id"] != deduped[-1]["item_id"]:
                 deduped.append(rec)
         user_items[user_id] = deduped
 
-    # Build sessions: sliding window over sorted items
+    # 构建会话：在排序后的物品上滑动窗口
     sessions = []
     for user_id, items in user_items.items():
         if len(items) < min_session_len + 1:
-            continue  # need at least min_session_len history items + 1 target
+            continue  # 至少需要 min_session_len 个历史物品 + 1 个目标
         for i in range(len(items) - 1):
             history_end = min(i + max_session_len, len(items) - 1)
             history = items[i:history_end]
@@ -123,9 +123,9 @@ def assign_splits(
     test_ratio: float = 0.1,
     seed: int = 42,
 ) -> List[Dict]:
-    """Assign train/val/test splits by user to avoid leakage."""
+    """按用户分配训练/验证/测试划分以防止数据泄露。"""
     random.seed(seed)
-    # Group sessions by user
+    # 按用户将会话分组
     user_sessions = defaultdict(list)
     for s in sessions:
         user_sessions[s["user_id"]].append(s)
@@ -138,7 +138,7 @@ def assign_splits(
         n_val = max(1, int(total * val_ratio)) if val_ratio > 0 else 0
         n_train = total - n_test - n_val
         if n_train <= 0:
-            # If too few, put earliest in train, latest in test
+            # 如果太少，最早的放训练集，最晚的放测试集
             n_train = total // 2
             n_test = total - n_train
             n_val = 0
@@ -166,7 +166,7 @@ def assign_splits(
 
 
 def save_sessions(sessions: List[Dict], output_path: str):
-    """Save sessions to JSONL."""
+    """将会话保存为 JSONL。"""
     os.makedirs(os.path.dirname(output_path) or ".", exist_ok=True)
     with open(output_path, "w", encoding="utf-8") as f:
         for s in sessions:

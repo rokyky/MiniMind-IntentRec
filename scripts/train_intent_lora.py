@@ -1,8 +1,8 @@
 """
-train_intent_lora.py - Train MiniMind LoRA for intent generation.
+train_intent_lora.py - 训练 MiniMind LoRA 进行意图生成。
 
-Uses existing MiniMind LoRA training infrastructure from trainer/train_lora.py.
-Loads prepared SFT data, trains with intent-specific prompts, saves LoRA weights.
+使用 trainer/train_lora.py 中现有的 MiniMind LoRA 训练基础设施。
+加载准备好的 SFT 数据，使用意图特定的提示进行训练，保存 LoRA 权重。
 """
 
 import os
@@ -17,13 +17,13 @@ sys.path.insert(0, os.path.join(os.path.dirname(__file__), ".."))
 logging.basicConfig(level=logging.INFO, format="%(asctime)s [%(levelname)s] %(message)s")
 logger = logging.getLogger(__name__)
 
-# Re-use the existing MiniMind LoRA trainer
-# This script is a wrapper that translates the intent config into
-# the format expected by trainer/train_lora.py
+# 复用现有的 MiniMind LoRA 训练器
+# 此脚本是一个包装器，将意图配置转换为
+# trainer/train_lora.py 期望的格式
 
 
 def load_config(config_path: str) -> dict:
-    """Load YAML config."""
+    """加载 YAML 配置。"""
     with open(config_path, "r", encoding="utf-8") as f:
         return yaml.safe_load(f)
 

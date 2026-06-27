@@ -5,7 +5,7 @@ from transformers import PreTrainedModel, GenerationMixin, PretrainedConfig
 from transformers.modeling_outputs import MoeCausalLMOutputWithPast
 
 # 🌏🌎🌍🌏🌎🌍🌏🌎🌍🌏🌎🌍🌏🌎🌍🌏🌎🌍🌏🌎🌍🌏🌎🌍🌏🌎🌍🌏🌎🌍🌏🌎🌍🌏🌎🌍🌏🌎🌍🌏🌎🌍🌏🌎🌍🌏🌎🌍🌏🌎🌍🌏
-#                                     MiniMind Config
+#                                     MiniMind 配置
 # 🌏🌎🌍🌏🌎🌍🌏🌎🌍🌏🌎🌍🌏🌎🌍🌏🌎🌍🌏🌎🌍🌏🌎🌍🌏🌎🌍🌏🌎🌍🌏🌎🌍🌏🌎🌍🌏🌎🌍🌏🌎🌍🌏🌎🌍🌏🌎🌍🌏🌎🌍🌏
 class MiniMindConfig(PretrainedConfig):
     model_type = "minimind"
@@ -45,7 +45,7 @@ class MiniMindConfig(PretrainedConfig):
         self.router_aux_loss_coef = kwargs.get("router_aux_loss_coef", 5e-4)
 
 # 🌏🌎🌍🌏🌎🌍🌏🌎🌍🌏🌎🌍🌏🌎🌍🌏🌎🌍🌏🌎🌍🌏🌎🌍🌏🌎🌍🌏🌎🌍🌏🌎🌍🌏🌎🌍🌏🌎🌍🌏🌎🌍🌏🌎🌍🌏🌎🌍🌏🌎🌍🌏
-#                                     MiniMind Model
+#                                     MiniMind 模型
 # 🌏🌎🌍🌏🌎🌍🌏🌎🌍🌏🌎🌍🌏🌎🌍🌏🌎🌍🌏🌎🌍🌏🌎🌍🌏🌎🌍🌏🌎🌍🌏🌎🌍🌏🌎🌍🌏🌎🌍🌏🌎🌍🌏🌎🌍🌏🌎🌍🌏🌎🌍🌏
 class RMSNorm(torch.nn.Module):
     def __init__(self, dim: int, eps: float = 1e-5):
@@ -212,7 +212,7 @@ class MiniMindModel(nn.Module):
         past_key_values = past_key_values or [None] * len(self.layers)
         start_pos = past_key_values[0][0].shape[1] if past_key_values[0] is not None else 0
         hidden_states = self.dropout(self.embed_tokens(input_ids))
-        # Recompute RoPE buffers lost during meta-device init (transformers>=5.x)
+        # 重新计算 meta-device 初始化期间丢失的 RoPE 缓冲区（transformers>=5.x）
         if self.freqs_cos[0, 0] == 0:
             freqs_cos, freqs_sin = precompute_freqs_cis(dim=self.config.head_dim, end=self.config.max_position_embeddings, rope_base=self.config.rope_theta, rope_scaling=self.config.rope_scaling)
             self.freqs_cos, self.freqs_sin = freqs_cos.to(hidden_states.device), freqs_sin.to(hidden_states.device)

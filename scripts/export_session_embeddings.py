@@ -1,9 +1,9 @@
 """
-export_session_embeddings.py - Export session embeddings from sequence encoder.
+export_session_embeddings.py - 从序列编码器导出会话嵌入。
 
-Loads a trained sequence encoder model (SASRec, RoTE-TimeRec, or custom),
-runs forward pass to get last hidden state as session embedding,
-and exports as numpy arrays with session metadata.
+加载训练好的序列编码器模型（SASRec、RoTE-TimeRec 或自定义），
+运行前向传播以获得最后隐藏状态作为会话嵌入，
+并导出为带有会话元数据的 numpy 数组。
 """
 
 import json
@@ -23,9 +23,9 @@ logger = logging.getLogger(__name__)
 
 class DummyEncoder(torch.nn.Module):
     """
-    Placeholder encoder that creates random embeddings for testing.
+    占位编码器，为测试创建随机嵌入。
 
-    Replace with actual SASRec or RoTE-TimeRec model import.
+    替换为实际的 SASRec 或 RoTE-TimeRec 模型导入。
     """
 
     def __init__(self, embedding_dim: int = 64):
@@ -33,20 +33,20 @@ class DummyEncoder(torch.nn.Module):
         self.embedding_dim = embedding_dim
 
     def forward(self, item_ids: torch.Tensor) -> torch.Tensor:
-        """Return random embeddings of shape (batch, embedding_dim)."""
+        """返回形状为 (batch, embedding_dim) 的随机嵌入。"""
         batch_size = item_ids.shape[0]
         return torch.randn(batch_size, self.embedding_dim)
 
 
 def try_load_encoder(encoder_type: str, encoder_path: str, embedding_dim: int, device: str):
     """
-    Attempt to load an actual sequence encoder model.
-    Falls back to DummyEncoder if the model type is not recognized.
+    尝试加载实际的序列编码器模型。
+    如果模型类型不被识别，则回退到 DummyEncoder。
 
-    Supported encoder_type values:
-      - "sasrec": SASRec model (expects SASRec class)
-      - "rote": RoTE-TimeRec model
-      - "dummy": Random embeddings for testing
+    支持的 encoder_type 值：
+      - "sasrec": SASRec 模型（期望 SASRec 类）
+      - "rote": RoTE-TimeRec 模型
+      - "dummy": 用于测试的随机嵌入
     """
     if encoder_type == "dummy" or not encoder_path:
         logger.warning("Using dummy encoder (random embeddings)")
@@ -54,7 +54,7 @@ def try_load_encoder(encoder_type: str, encoder_path: str, embedding_dim: int, d
 
     try:
         if encoder_type == "sasrec":
-            # Attempt to import SASRec
+            # 尝试导入 SASRec
             sys.path.insert(0, os.path.dirname(encoder_path))
             from sasrec import SASRec
             model = SASRec(item_num=10000, hidden_size=embedding_dim)
@@ -63,7 +63,7 @@ def try_load_encoder(encoder_type: str, encoder_path: str, embedding_dim: int, d
             logger.info(f"Loaded SASRec from {encoder_path}")
             return model.to(device).eval()
         elif encoder_type == "rote":
-            # Attempt to import RoTE-TimeRec
+            # 尝试导入 RoTE-TimeRec
             sys.path.insert(0, os.path.dirname(encoder_path))
             from rote import RoTETimeRec
             model = RoTETimeRec(hidden_size=embedding_dim)
@@ -88,27 +88,27 @@ def encode_sessions(
     batch_size: int = 64,
 ) -> Dict:
     """
-    Encode sessions into embeddings using the sequence encoder.
+    使用序列编码器将会话编码为嵌入。
 
     Args:
-        sessions: List of session dicts with item_ids.
-        encoder: Sequence encoder model.
-        item2id: Optional mapping from item_id string to integer ID.
-        device: Device for computation.
-        batch_size: Batch size for encoding.
+        sessions: 包含 item_ids 的会话字典列表。
+        encoder: 序列编码器模型。
+        item2id: 可选的从 item_id 字符串到整数 ID 的映射。
+        device: 计算设备。
+        batch_size: 编码的批次大小。
 
     Returns:
-        Dict with:
-          - embeddings: numpy array of shape (n_sessions, embedding_dim)
-          - session_ids: list of session ID strings
-          - metadata: list of dicts with session metadata
+        包含以下内容的字典：
+          - embeddings: 形状为 (n_sessions, embedding_dim) 的 numpy 数组
+          - session_ids: 会话 ID 字符串列表
+          - metadata: 包含会话元数据的字典列表
     """
     embedding_dim = encoder.embedding_dim if hasattr(encoder, "embedding_dim") else 64
     all_embeddings = []
     all_session_ids = []
     all_metadata = []
 
-    # Assign session IDs
+    # 分配会话 ID
     for s in sessions:
         uid = s.get("user_id", "")
         target = s.get("target_item", "")
@@ -122,11 +122,11 @@ def encode_sessions(
 
         for s in batch:
             item_ids = s.get("item_ids", [])
-            # Map string item_ids to ints if mapping provided
+            # 如果提供了映射，将字符串 item_id 映射为整数
             if item2id:
                 int_ids = [item2id.get(iid, 0) for iid in item_ids]
             else:
-                # Use hash as fallback
+                # 使用哈希作为回退
                 int_ids = [abs(hash(iid)) % 10000 for iid in item_ids]
             # Pad to max length
             padded = int_ids + [0] * (batch_max_len - len(int_ids))
@@ -135,15 +135,15 @@ def encode_sessions(
         input_tensor = torch.tensor(batch_item_ids, dtype=torch.long, device=device)
 
         with torch.no_grad():
-            # Forward pass: expect the last hidden state as session embedding
-            # Different encoders have different interfaces - try common patterns
+            # 前向传播：期望最后的隐藏状态作为会话嵌入
+            # 不同的编码器有不同的接口——尝试常见模式
             try:
                 embeddings = encoder(input_tensor)
                 if isinstance(embeddings, tuple):
                     embeddings = embeddings[0]
-                # If output has seq dimension, take last valid position
+                # 如果输出有序列维度，取最后一个有效位置
                 if embeddings.dim() == 3:
-                    # For each item in batch, find last non-pad position
+                    # 对于批次中的每个物品，找到最后一个非填充位置
                     lengths = torch.tensor(
                         [len(s["item_ids"]) for s in batch],
                         device=device
@@ -187,21 +187,21 @@ def save_embeddings(
     output_dir: str,
     prefix: str = "session_embeddings",
 ):
-    """Save embeddings and metadata to disk."""
+    """将嵌入和元数据保存到磁盘。"""
     os.makedirs(output_dir, exist_ok=True)
 
-    # Save numpy embeddings
+    # 保存 numpy 嵌入
     emb_path = os.path.join(output_dir, f"{prefix}.npy")
     np.save(emb_path, result["embeddings"])
     logger.info(f"Saved embeddings ({result['embeddings'].shape}) to {emb_path}")
 
-    # Save session IDs
+    # 保存会话 ID
     ids_path = os.path.join(output_dir, f"{prefix}_ids.json")
     with open(ids_path, "w", encoding="utf-8") as f:
         json.dump(result["session_ids"], f, ensure_ascii=False)
     logger.info(f"Saved session IDs to {ids_path}")
 
-    # Save metadata
+    # 保存元数据
     meta_path = os.path.join(output_dir, f"{prefix}_metadata.jsonl")
     with open(meta_path, "w", encoding="utf-8") as f:
         for meta in result["metadata"]:

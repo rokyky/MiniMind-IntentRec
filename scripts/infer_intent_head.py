@@ -1,11 +1,11 @@
 """
-infer_intent_head.py - Inference with trained MLP intent head.
+infer_intent_head.py - 使用训练好的 MLP 意图头进行推理。
 
-Supports:
-  - Threshold mode: output all intents above confidence threshold
-  - Top-k mode: output top-k intents
-  - Export intent features for downstream ranker
-  - Measure inference latency
+支持：
+  - 阈值模式：输出所有高于置信度阈值的意图
+  - Top-k 模式：输出 top-k 意图
+  - 为下游排序器导出意图特征
+  - 测量推理延迟
 """
 
 import json
@@ -28,7 +28,7 @@ logger = logging.getLogger(__name__)
 
 
 def load_model(checkpoint_path: str, device: str = "cpu") -> MLPIntentHead:
-    """Load trained MLP intent head from checkpoint."""
+    """从检查点加载训练好的 MLP 意图头。"""
     checkpoint = torch.load(checkpoint_path, map_location=device)
     cfg = checkpoint.get("config", {})
     config = MLPIntentHeadConfig(
@@ -56,9 +56,9 @@ def predict_top_k(
     device: str = "cpu",
 ) -> Tuple[np.ndarray, np.ndarray]:
     """
-    Predict top-k intents for each embedding.
+    为每个嵌入预测 top-k 意图。
 
-    Returns (values, indices) each of shape (n_samples, k).
+    返回 (values, indices)，每个形状为 (n_samples, k)。
     """
     all_values = []
     all_indices = []
@@ -79,9 +79,9 @@ def predict_threshold(
     device: str = "cpu",
 ) -> List[List[Tuple[str, float]]]:
     """
-    Predict all intents above confidence threshold.
+    预测所有高于置信度阈值的意图。
 
-    Returns list of (intent_name, confidence) tuples per sample.
+    返回每个样本的 (intent_name, confidence) 元组列表。
     """
     results = []
     for i in range(0, len(embeddings), batch_size):
@@ -103,7 +103,7 @@ def predict_all_probs(
     batch_size: int = 256,
     device: str = "cpu",
 ) -> np.ndarray:
-    """Get full probability distribution for all samples."""
+    """获取所有样本的完整概率分布。"""
     all_probs = []
     for i in range(0, len(embeddings), batch_size):
         batch = torch.tensor(embeddings[i:i + batch_size], dtype=torch.float32, device=device)
@@ -119,20 +119,20 @@ def measure_latency(
     n_measure: int = 100,
     device: str = "cpu",
 ) -> Dict:
-    """Measure inference latency with dummy data."""
+    """使用虚拟数据测量推理延迟。"""
     dummy = torch.randn(1, embedding_dim, device=device)
-    # Warmup
+    # 预热
     for _ in range(n_warmup):
         _ = model(dummy)
 
-    # Measure single sample latency
+    # 测量单样本延迟
     latencies = []
     for _ in range(n_measure):
         start = time.perf_counter()
         _ = model(dummy)
         latencies.append((time.perf_counter() - start) * 1000)  # ms
 
-    # Measure batch latency (batch=64)
+    # 测量批次延迟（batch=64）
     dummy_batch = torch.randn(64, embedding_dim, device=device)
     batch_latencies = []
     for _ in range(n_measure):
@@ -174,7 +174,7 @@ def main():
         help="Output path for predictions"
     )
 
-    # Inference mode
+    # 推理模式
     parser.add_argument(
         "--mode", default="topk", choices=["topk", "threshold", "full"],
         help="Inference mode: topk, threshold, or full distribution"
@@ -190,7 +190,7 @@ def main():
         "--batch-size", type=int, default=256, help="Batch size"
     )
 
-    # Latency benchmark
+    # 延迟基准测试
     parser.add_argument(
         "--benchmark", action="store_true",
         help="Run latency benchmark instead of full inference"
@@ -205,7 +205,7 @@ def main():
     model = load_model(args.checkpoint, args.device)
     embedding_dim = model.mlp[1].in_features if hasattr(model.mlp[1], "in_features") else 64
 
-    # Latency benchmark
+    # 延迟基准测试
     if args.benchmark:
         logger.info("Running latency benchmark...")
         latency_results = measure_latency(
@@ -221,7 +221,7 @@ def main():
             print(f"  {key}: {val:.4f}{unit if not unit else ''}")
         print("=" * 60)
 
-        # Save benchmark
+        # 保存基准测试结果
         bench_path = args.output.replace(".jsonl", "_latency.json")
         os.makedirs(os.path.dirname(bench_path) or ".", exist_ok=True)
         with open(bench_path, "w", encoding="utf-8") as f:
@@ -229,7 +229,7 @@ def main():
         logger.info(f"Benchmark saved to {bench_path}")
         return
 
-    # Full inference
+    # 完整推理
     if args.embeddings is None:
         logger.error("--embeddings required for inference mode")
         return
@@ -238,7 +238,7 @@ def main():
     embeddings = np.load(args.embeddings)
     logger.info(f"Embeddings shape: {embeddings.shape}")
 
-    # Load metadata if provided
+    # 加载元数据（如果提供了）
     metadata = []
     if args.metadata and os.path.exists(args.metadata):
         with open(args.metadata, "r", encoding="utf-8") as f:
@@ -246,7 +246,7 @@ def main():
                 metadata.append(json.loads(line.strip()))
         logger.info(f"Loaded {len(metadata)} metadata entries")
 
-    # Run inference
+    # 运行推理
     start_time = time.time()
 
     if args.mode == "topk":

@@ -1,9 +1,9 @@
 """
-prepare_intent_sft_data.py - Prepare SFT data for MiniMind intent generation.
+prepare_intent_sft_data.py - 为 MiniMind 意图生成准备 SFT 数据。
 
-Converts session text -> structured intent JSON pairs, formats as
-chat conversations for MiniMind SFT training, and outputs JSONL
-with train/val/test splits.
+将会话文本转换为结构化意图 JSON 对，格式化为
+MiniMind SFT 训练的聊天对话，并输出包含
+训练/验证/测试划分的 JSONL。
 """
 
 import json
@@ -29,9 +29,9 @@ def build_intent_prompt(
     max_items: int = 10,
 ) -> str:
     """
-    Build the user prompt for intent generation from a session.
+    从会话构建用于意图生成的用户提示。
 
-    Returns a chat-style user message asking to analyze user intent.
+    返回要求分析用户意图的聊天风格用户消息。
     """
     session_text = serialize_session(
         titles=titles,
@@ -54,15 +54,15 @@ def build_conversation(
     system_prompt: str = None,
 ) -> dict:
     """
-    Build a chat conversation for MiniMind SFTDataset.
+    为 MiniMind SFTDataset 构建聊天对话。
 
     Args:
-        session: Session dict with item_titles, categories, timestamps.
-        label: Intent label dict with primary_intent, secondary_intents, etc.
-        system_prompt: Optional system prompt override.
+        session: 包含 item_titles、categories、timestamps 的会话字典。
+        label: 包含 primary_intent、secondary_intents 等的意图标签字典。
+        system_prompt: 可选的系统提示覆盖。
 
     Returns:
-        Dict with "conversations" key for SFTDataset consumption.
+        带有 SFTDataset 使用的 "conversations" 键的字典。
     """
     if system_prompt is None:
         system_prompt = get_system_prompt()
@@ -94,26 +94,26 @@ def convert(
     cache_path: str = None,
 ):
     """
-    Convert sessions + labels into SFT format data.
+    将会话+标签转换为 SFT 格式数据。
 
     Args:
-        sessions_path: Path to session JSONL.
-        labels_path: Path to teacher labels JSONL (session_id -> intent).
-        output_dir: Output directory for SFT data.
-        system_prompt: System prompt override.
-        seed: Random seed for splitting.
-        val_ratio: Ratio of validation data.
-        test_ratio: Ratio of test data.
-        cache_path: Optional path to cached labels to supplement labels_path.
+        sessions_path: 会话 JSONL 的路径。
+        labels_path: 教师标签 JSONL 的路径（session_id -> intent）。
+        output_dir: SFT 数据的输出目录。
+        system_prompt: 系统提示覆盖。
+        seed: 用于划分的随机种子。
+        val_ratio: 验证数据比例。
+        test_ratio: 测试数据比例。
+        cache_path: 可选的缓存标签路径，用于补充 labels_path。
     """
-    # Load sessions
+    # 加载会话
     sessions = []
     with open(sessions_path, "r", encoding="utf-8") as f:
         for line in f:
             sessions.append(json.loads(line.strip()))
     logger.info(f"Loaded {len(sessions)} sessions")
 
-    # Load labels
+    # 加载标签
     labels = {}
     if labels_path and os.path.exists(labels_path):
         with open(labels_path, "r", encoding="utf-8") as f:
@@ -122,7 +122,7 @@ def convert(
                 labels[entry.get("session_id", "")] = entry.get("intent", {})
         logger.info(f"Loaded {len(labels)} labels from {labels_path}")
 
-    # Also try loading from cache
+    # 也尝试从缓存加载
     if cache_path and os.path.exists(cache_path):
         with open(cache_path, "r", encoding="utf-8") as f:
             cache_data = json.load(f)
@@ -133,19 +133,19 @@ def convert(
                     labels[sid] = intent_json
         logger.info(f"After cache supplement: {len(labels)} labels")
 
-    # Build session_id for each session
+    # 为每个会话构建 session_id
     for s in sessions:
         uid = s.get("user_id", "")
         target = s.get("target_item", "")
         last_ts = s.get("timestamps", [0])[-1] if s.get("timestamps") else 0
         s["_session_id"] = f"{uid}_{target}_{last_ts}"
 
-    # Match sessions with labels
+    # 将会话与标签匹配
     matched = []
     for s in sessions:
         sid = s.get("_session_id")
         label = labels.get(sid) or labels.get(s.get("user_id", ""))
-        # Also try matching by user_id + target_item
+        # 也尝试按 user_id + target_item 匹配
         alt_key = f"{s.get('user_id', '')}_{s.get('target_item', '')}"
         if label is None and alt_key in labels:
             label = labels[alt_key]
@@ -159,13 +159,13 @@ def convert(
         logger.error("No matched sessions with labels. Cannot create SFT data.")
         return
 
-    # Build conversations
+    # 构建对话
     conversations = []
     for s, label in matched:
         conv = build_conversation(s, label, system_prompt)
         conversations.append(conv)
 
-    # Shuffle and split
+    # 打乱并划分
     random.seed(seed)
     random.shuffle(conversations)
 
@@ -183,7 +183,7 @@ def convert(
         f"{len(test_data)} test"
     )
 
-    # Save
+    # 保存
     os.makedirs(output_dir, exist_ok=True)
     for name, data in [
         ("train", train_data),
@@ -196,14 +196,14 @@ def convert(
                 f.write(json.dumps(conv, ensure_ascii=False) + "\n")
         logger.info(f"Saved {len(data)} samples -> {path}")
 
-    # Save combined also for easy access
+    # 保存组合文件以便于访问
     combined_path = os.path.join(output_dir, "all.jsonl")
     with open(combined_path, "w", encoding="utf-8") as f:
         for conv in conversations:
             f.write(json.dumps(conv, ensure_ascii=False) + "\n")
     logger.info(f"Saved {len(conversations)} total -> {combined_path}")
 
-    # Summary
+    # 汇总
     primary_intents = {}
     for _, label in matched:
         pi = label.get("primary_intent", "unknown")

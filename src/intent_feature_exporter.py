@@ -1,14 +1,14 @@
 """
-intent_feature_exporter.py - Export intent features for downstream ranker.
+intent_feature_exporter.py - 为下游排序器导出意图特征。
 
-Supports:
-  - One-hot / multi-hot intent IDs
-  - Intent distribution vector (probability over all intents)
-  - Top-k intent text labels
-  - Source model tag (teacher/MiniMind/MLP)
-  - Confidence score
+支持：
+  - One-hot / multi-hot 意图 ID
+  - 意图分布向量（所有意图的概率）
+  - Top-k 意图文本标签
+  - 源模型标签（teacher/MiniMind/MLP）
+  - 置信度分数
 
-Output in stable, machine-readable format (JSON/parquet).
+输出为稳定、机器可读的格式（JSON/parquet）。
 """
 
 import json
@@ -21,14 +21,14 @@ from src.intent_taxonomy import ALL_INTENTS
 
 class IntentFeatureExporter:
     """
-    Export intent predictions as feature vectors for downstream rankers.
+    将意图预测导出为用于下游排序器的特征向量。
 
-    Each feature vector can contain:
-      - one_hot: binary vector of shape (n_intents,) with 1 for predicted intent
-      - multi_hot: binary vector with 1s for primary + secondary intents
-      - distribution: float probability vector over all intents
-      - top_k_labels: list of (intent_name, confidence) tuples
-      - metadata: source model tag, confidence score, etc.
+    每个特征向量可以包含：
+      - one_hot：形状为 (n_intents,) 的二进制向量，预测的意图为 1
+      - multi_hot：主要+次要意图为 1 的二进制向量
+      - distribution：所有意图的浮点数概率向量
+      - top_k_labels：(intent_name, confidence) 元组列表
+      - metadata：源模型标签、置信度分数等
     """
 
     def __init__(
@@ -38,9 +38,9 @@ class IntentFeatureExporter:
     ):
         """
         Args:
-            intent_list: Ordered list of all possible intent labels.
-                         Defaults to ALL_INTENTS from intent_taxonomy.
-            top_k_default: Default number of top intents to include.
+            intent_list: 所有可能的意图标签的有序列表。
+                         默认为 intent_taxonomy 中的 ALL_INTENTS。
+            top_k_default: 默认包含的 top 意图数量。
         """
         self.intent_list = intent_list or ALL_INTENTS
         self.n_intents = len(self.intent_list)
@@ -56,17 +56,17 @@ class IntentFeatureExporter:
         top_k: int = 5,
     ) -> List[Dict[str, Any]]:
         """
-        Build features from top-k prediction output.
+        从 top-k 预测输出构建特征。
 
         Args:
-            indices: (n_samples, k) array of intent indices.
-            values: (n_samples, k) array of confidence scores.
-            session_ids: Optional list of session identifiers.
-            source_model: Tag identifying the source model.
-            top_k: Number of top intents.
+            indices: (n_samples, k) 意图索引数组。
+            values: (n_samples, k) 置信度分数数组。
+            session_ids: 可选的会话标识符列表。
+            source_model: 标识源模型的标签。
+            top_k: Top 意图数量。
 
         Returns:
-            List of feature dicts, one per sample.
+            特征字典列表，每个样本一个。
         """
         features = []
         for i in range(len(indices)):
@@ -74,7 +74,7 @@ class IntentFeatureExporter:
             top_indices = indices[i, :n_top]
             top_values = values[i, :n_top]
 
-            # Build feature dict
+            # 构建特征字典
             feat = self._build_feature_dict(
                 intent_indices=top_indices,
                 intent_values=top_values,
@@ -94,20 +94,20 @@ class IntentFeatureExporter:
         threshold: float = 0.0,
     ) -> List[Dict[str, Any]]:
         """
-        Build features from full probability distribution.
+        从完整概率分布构建特征。
 
         Args:
-            probs: (n_samples, n_intents) probability array.
-            session_ids: Optional list of session identifiers.
-            source_model: Tag identifying the source model.
-            threshold: Minimum confidence to include in top_k.
+            probs: (n_samples, n_intents) 概率数组。
+            session_ids: 可选的会话标识符列表。
+            source_model: 标识源模型的标签。
+            threshold: 包含在 top_k 中的最低置信度。
 
         Returns:
-            List of feature dicts, one per sample.
+            特征字典列表，每个样本一个。
         """
         features = []
         for i in range(len(probs)):
-            # Find top-k above threshold
+            # 查找高于阈值的 top-k
             sorted_idx = np.argsort(-probs[i])
             sorted_vals = probs[i][sorted_idx]
             above_mask = sorted_vals >= threshold
@@ -138,21 +138,21 @@ class IntentFeatureExporter:
         source_model: str = "teacher",
     ) -> List[Dict[str, Any]]:
         """
-        Build features from labeled primary/secondary intent names.
+        从已标注的主要/次要意图名称构建特征。
 
         Args:
-            intent_names: List of intent strings (first is primary).
-            confidence: Confidence score for primary intent.
-            session_ids: Optional list of session identifiers.
-            source_model: Tag identifying the source model.
+            intent_names: 意图字符串列表（第一个是主要意图）。
+            confidence: 主要意图的置信度分数。
+            session_ids: 可选的会话标识符列表。
+            source_model: 标识源模型的标签。
 
         Returns:
-            List of feature dicts, one per sample.
+            特征字典列表，每个样本一个。
         """
         features = []
         for i, name in enumerate(intent_names):
             if isinstance(intent_names[i], list):
-                # intent_names may be nested: each entry is a list
+                # intent_names 可能嵌套：每个条目是一个列表
                 names = intent_names[i]
             else:
                 names = [intent_names[i]]
@@ -189,19 +189,19 @@ class IntentFeatureExporter:
         is_multi_hot: bool = False,
         full_distribution: Optional[np.ndarray] = None,
     ) -> Dict[str, Any]:
-        """Build a single feature dict."""
+        """构建单个特征字典。"""
         n_intents = self.n_intents
 
-        # One-hot: only the top intent
+        # One-hot：仅 top 意图
         one_hot = np.zeros(n_intents, dtype=np.float32)
         one_hot[int(intent_indices[0])] = 1.0
 
-        # Multi-hot: all predicted intents
+        # Multi-hot：所有预测的意图
         multi_hot = np.zeros(n_intents, dtype=np.float32)
         for idx in intent_indices:
             multi_hot[int(idx)] = 1.0
 
-        # Distribution vector
+        # 分布向量
         if full_distribution is not None:
             distribution = full_distribution.astype(np.float32)
         else:
@@ -209,7 +209,7 @@ class IntentFeatureExporter:
             for idx, val in zip(intent_indices, intent_values):
                 distribution[int(idx)] = val
 
-        # Top-k labels
+        # Top-k 标签
         top_k_labels = [
             {
                 "intent": self.intent_list[int(idx)],
@@ -225,7 +225,7 @@ class IntentFeatureExporter:
             "primary_confidence": float(intent_values[0]),
             "num_intents": len(intent_indices),
             "top_k_labels": top_k_labels,
-            # Feature vectors for ranker (as lists for JSON serialization)
+            # 供排序器使用的特征向量（以列表形式用于 JSON 序列化）
             "one_hot": one_hot.tolist(),
             "multi_hot": multi_hot.tolist(),
             "distribution": distribution.tolist(),
@@ -233,7 +233,7 @@ class IntentFeatureExporter:
 
     @staticmethod
     def save_jsonl(features: List[Dict], output_path: str):
-        """Save features as JSONL."""
+        """将特征保存为 JSONL。"""
         os.makedirs(os.path.dirname(output_path) or ".", exist_ok=True)
         with open(output_path, "w", encoding="utf-8") as f:
             for feat in features:
@@ -242,9 +242,9 @@ class IntentFeatureExporter:
     @staticmethod
     def save_npz(features: List[Dict], output_path: str):
         """
-        Save feature arrays as .npz for direct ranker consumption.
+        将特征数组保存为 .npz 格式，供排序器直接使用。
 
-        Extracts one_hot, multi_hot, distribution arrays.
+        提取 one_hot、multi_hot、distribution 数组。
         """
         os.makedirs(os.path.dirname(output_path) or ".", exist_ok=True)
 
@@ -263,7 +263,7 @@ class IntentFeatureExporter:
 
     @staticmethod
     def load_features(path: str) -> List[Dict]:
-        """Load features from JSONL."""
+        """从 JSONL 加载特征。"""
         features = []
         with open(path, "r", encoding="utf-8") as f:
             for line in f:

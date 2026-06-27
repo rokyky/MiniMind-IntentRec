@@ -1,11 +1,11 @@
 """
-session_serializer.py - Serialize session data to human-readable text.
+session_serializer.py - 将会话数据序列化为人类可读文本。
 
-Formats a session into:
+将会话格式化为：
   "User recently viewed/bought: [title1] (category1) at [time1],
    [title2] (category2) at [time2], ..."
 
-Supports configurable max items, timestamp formatting, and optional user ids.
+支持可配置的最大物品数、时间戳格式和可选的用户 ID。
 """
 
 import datetime
@@ -13,7 +13,7 @@ from typing import List, Dict, Optional
 
 
 def format_timestamp(ts: int) -> str:
-    """Convert unix timestamp to human-readable date string."""
+    """将 Unix 时间戳转换为人类可读的日期字符串。"""
     if ts <= 0:
         return "unknown time"
     try:
@@ -33,24 +33,24 @@ def serialize_session(
     prefix: str = "User recently viewed/bought",
 ) -> str:
     """
-    Serialize a session to a text string.
+    将会话序列化为文本字符串。
 
     Args:
-        titles: List of item titles in chronological order.
-        categories: List of item categories (same length as titles).
-        timestamps: Optional list of unix timestamps (same length).
-        max_items: Max number of items to include in the text.
-        include_user: If True, prepend user id info.
-        user_id: User identifier (used when include_user is True).
-        prefix: Beginning phrase for the session text.
+        titles: 按时间顺序排列的物品标题列表。
+        categories: 物品类别列表（长度与 titles 相同）。
+        timestamps: 可选的 Unix 时间戳列表（长度相同）。
+        max_items: 文本中包含的最大物品数。
+        include_user: 如果为 True，则前置用户 ID 信息。
+        user_id: 用户标识符（当 include_user 为 True 时使用）。
+        prefix: 会话文本的开头短语。
 
     Returns:
-        Human-readable session text string.
+        人类可读的会话文本字符串。
     """
     if not titles or not categories:
         return ""
 
-    # Truncate to max_items
+    # 截断至 max_items
     titles = titles[:max_items]
     categories = categories[:max_items]
     if timestamps:
@@ -80,10 +80,10 @@ def serialize_session_with_target(
     max_items: int = 10,
 ) -> str:
     """
-    Serialize session and target item for teacher labeling prompt.
+    为教师标注提示序列化会话和目标物品。
 
-    Returns (session_text, prompt_text) where prompt_text is the full
-    text asking the teacher to predict the intent of this user.
+    返回 (session_text, prompt_text)，其中 prompt_text 是完整的
+    要求教师预测该用户意图的文本。
     """
     session_text = serialize_session(
         titles, categories, timestamps, max_items=max_items

@@ -1,11 +1,11 @@
 """
-teacher_label_cache.py - Offline teacher label cache.
+teacher_label_cache.py - 离线教师标签缓存。
 
-JSON-based cache format:
+基于 JSON 的缓存格式：
   {session_id: {intent_json, model_version, created_at}}
 
-Supports load/save, lookup by session_id, force-refresh flag, and
-version tracking for taxonomy changes.
+支持加载/保存、按 session_id 查找、强制刷新标志和
+分类体系变更的版本追踪。
 """
 
 import json
@@ -19,10 +19,10 @@ logger = logging.getLogger(__name__)
 
 class TeacherLabelCache:
     """
-    Cache for teacher-generated intent labels.
+    教师生成的意图标签的缓存。
 
-    Stores labels in a JSON file and supports lookup by session_id.
-    Tracks model_version and taxonomy_version for cache invalidation.
+    将标签存储在 JSON 文件中，支持按 session_id 查找。
+    通过 model_version 和 taxonomy_version 跟踪缓存失效。
     """
 
     def __init__(
@@ -32,12 +32,12 @@ class TeacherLabelCache:
         taxonomy_version: str = "1.0",
     ):
         """
-        Initialize the cache.
+        初始化缓存。
 
         Args:
-            cache_path: Path to the JSON cache file.
-            model_version: Version identifier of the teacher model.
-            taxonomy_version: Version identifier of the taxonomy schema.
+            cache_path: JSON 缓存文件的路径。
+            model_version: 教师模型的版本标识符。
+            taxonomy_version: 分类体系模式的版本标识符。
         """
         self.cache_path = cache_path
         self.model_version = model_version
@@ -47,7 +47,7 @@ class TeacherLabelCache:
         self._load()
 
     def _load(self):
-        """Load cache from disk."""
+        """从磁盘加载缓存。"""
         if os.path.exists(self.cache_path):
             try:
                 with open(self.cache_path, "r", encoding="utf-8") as f:
@@ -65,7 +65,7 @@ class TeacherLabelCache:
             self._cache = {}
 
     def save(self):
-        """Save cache to disk if dirty."""
+        """如果缓存有变更则保存到磁盘。"""
         if not self._dirty:
             return
         os.makedirs(os.path.dirname(self.cache_path) or ".", exist_ok=True)
@@ -87,16 +87,16 @@ class TeacherLabelCache:
 
     def get(self, session_id: str) -> Optional[Dict[str, Any]]:
         """
-        Lookup a cached label by session_id.
+        按 session_id 查找缓存的标签。
 
-        Returns the intent_json dict if found and valid, None otherwise.
-        Also returns None if the cache entry's version doesn't match current.
+        如果找到且有效则返回 intent_json 字典，否则返回 None。
+        如果缓存条目的版本与当前版本不匹配，也返回 None。
         """
         entry = self._cache.get(session_id)
         if entry is None:
             return None
 
-        # Version check: invalidate if model or taxonomy version changed
+        # 版本检查：如果模型或分类体系版本更改则失效
         if entry.get("model_version") != self.model_version:
             logger.debug(
                 f"Cache entry for {session_id} has stale model_version "
@@ -118,11 +118,11 @@ class TeacherLabelCache:
         intent_json: Dict[str, Any],
     ):
         """
-        Set a cached label for a session_id.
+        为一个 session_id 设置缓存标签。
 
         Args:
-            session_id: Unique session identifier.
-            intent_json: The intent label dict conforming to the taxonomy schema.
+            session_id: 唯一的会话标识符。
+            intent_json: 符合分类体系模式的意图标签字典。
         """
         self._cache[session_id] = {
             "intent_json": intent_json,
@@ -133,18 +133,18 @@ class TeacherLabelCache:
         self._dirty = True
 
     def has(self, session_id: str) -> bool:
-        """Check if a session_id exists in cache with valid version."""
+        """检查 session_id 是否在缓存中且版本有效。"""
         return self.get(session_id) is not None
 
     def contains(self, session_id: str) -> bool:
-        """Check if session_id exists in cache regardless of version."""
+        """检查 session_id 是否在缓存中（无论版本如何）。"""
         return session_id in self._cache
 
     def force_refresh(self, session_id: str) -> bool:
         """
-        Remove a cached entry to force re-labeling on next access.
+        移除缓存的条目，以强制下次访问时重新标注。
 
-        Returns True if an entry was removed, False if not found.
+        如果条目被移除返回 True，如果未找到返回 False。
         """
         if session_id in self._cache:
             del self._cache[session_id]
@@ -153,16 +153,16 @@ class TeacherLabelCache:
         return False
 
     def force_refresh_all(self):
-        """Clear all cached labels."""
+        """清除所有缓存的标签。"""
         self._cache.clear()
         self._dirty = True
         logger.info("Cleared all cached labels.")
 
     def get_all_labels(self) -> Dict[str, Dict[str, Any]]:
         """
-        Get all cached labels (intent_json only), keyed by session_id.
+        获取所有缓存的标签（仅 intent_json），以 session_id 为键。
 
-        Only returns entries with matching versions.
+        仅返回版本匹配的条目。
         """
         result = {}
         for sid, entry in self._cache.items():
@@ -172,7 +172,7 @@ class TeacherLabelCache:
         return result
 
     def get_stats(self) -> Dict[str, int]:
-        """Return cache statistics."""
+        """返回缓存统计信息。"""
         total = len(self._cache)
         valid = sum(
             1 for e in self._cache.values()

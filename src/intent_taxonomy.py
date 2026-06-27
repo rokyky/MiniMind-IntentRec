@@ -1,16 +1,16 @@
 """
-intent_taxonomy.py - Controlled intent taxonomy schema and validation.
+intent_taxonomy.py - 受控意图分类体系（taxonomy）模式与验证。
 
-Defines the intent schema: {primary_intent, secondary_intents, confidence, evidence_items}
-Provides taxonomy categories, schema validation, and stability checks.
+定义意图模式：{primary_intent, secondary_intents, confidence, evidence_items}
+提供分类类别、模式验证和稳定性检查。
 """
 
 import json
 from typing import Dict, List, Optional, Tuple
 
 
-# ---- Intent Taxonomy Categories ----
-# Hierarchical taxonomy: top-level domain -> specific intents
+# ---- 意图分类类别 ----
+# 层次化分类：顶层领域 -> 具体意图
 INTENT_TAXONOMY = {
     "Sports & Fitness": {
         "description": "Athletic activities, workout gear, outdoor sports",
@@ -144,43 +144,43 @@ INTENT_TAXONOMY = {
     },
 }
 
-# Flat list of all intent labels for quick lookup
+# 所有意图标签的扁平列表，用于快速查找
 ALL_INTENTS = []
 for domain, info in INTENT_TAXONOMY.items():
     for intent in info["sub_intents"]:
         ALL_INTENTS.append(intent)
 
-# Intent to domain mapping
+# 意图到领域的映射
 INTENT_TO_DOMAIN = {}
 for domain, info in INTENT_TAXONOMY.items():
     for intent in info["sub_intents"]:
         INTENT_TO_DOMAIN[intent] = domain
 
 
-# ---- Intent Schema ----
+# ---- 意图模式 ----
 INTENT_SCHEMA = {
     "type": "object",
     "properties": {
         "primary_intent": {
             "type": "string",
-            "description": "The single most likely intent of the user session",
+            "description": "用户会话最可能的单个意图",
             "enum": ALL_INTENTS,
         },
         "secondary_intents": {
             "type": "array",
-            "description": "Additional plausible intents beyond the primary",
+            "description": "除主要意图外的其他可能意图",
             "items": {"type": "string", "enum": ALL_INTENTS},
             "maxItems": 5,
         },
         "confidence": {
             "type": "number",
-            "description": "Model confidence in the primary intent (0.0 to 1.0)",
+            "description": "模型对主要意图的置信度（0.0 到 1.0）",
             "minimum": 0.0,
             "maximum": 1.0,
         },
         "evidence_items": {
             "type": "array",
-            "description": "Indices (0-based) of items in the session that support this intent",
+            "description": "会话中支持该意图的物品索引（从0开始）",
             "items": {"type": "integer", "minimum": 0},
             "uniqueItems": True,
         },
@@ -191,18 +191,18 @@ INTENT_SCHEMA = {
 
 def validate_intent_label(label: Dict) -> Tuple[bool, List[str]]:
     """
-    Validate that an intent label conforms to the taxonomy schema.
+    验证意图标签是否符合分类体系（taxonomy）模式。
 
     Args:
-        label: Dict with keys primary_intent, secondary_intents (optional),
-               confidence, evidence_items (optional).
+        label: 包含键 primary_intent, secondary_intents (可选),
+               confidence, evidence_items (可选) 的字典。
 
     Returns:
-        (is_valid, errors) tuple.
+        (is_valid, errors) 元组。
     """
     errors = []
 
-    # Check required fields
+    # 检查必填字段
     if "primary_intent" not in label:
         errors.append("Missing required field: primary_intent")
     if "confidence" not in label:
@@ -211,7 +211,7 @@ def validate_intent_label(label: Dict) -> Tuple[bool, List[str]]:
     if errors:
         return False, errors
 
-    # Validate primary_intent
+    # 验证 primary_intent
     primary = label.get("primary_intent", "")
     if not isinstance(primary, str):
         errors.append("primary_intent must be a string")
@@ -221,14 +221,14 @@ def validate_intent_label(label: Dict) -> Tuple[bool, List[str]]:
             f"Valid intents: {ALL_INTENTS[:5]}... ({len(ALL_INTENTS)} total)"
         )
 
-    # Validate confidence
+    # 验证 confidence
     confidence = label.get("confidence", -1)
     if not isinstance(confidence, (int, float)):
         errors.append("confidence must be a number")
     elif confidence < 0.0 or confidence > 1.0:
         errors.append(f"confidence must be between 0.0 and 1.0, got {confidence}")
 
-    # Validate secondary_intents
+    # 验证 secondary_intents
     secondary = label.get("secondary_intents", [])
     if not isinstance(secondary, list):
         errors.append("secondary_intents must be a list")
@@ -249,7 +249,7 @@ def validate_intent_label(label: Dict) -> Tuple[bool, List[str]]:
         if len(secondary) != len(set(secondary)):
             errors.append("secondary_intents contains duplicates")
 
-    # Validate evidence_items
+    # 验证 evidence_items
     evidence = label.get("evidence_items", [])
     if not isinstance(evidence, list):
         errors.append("evidence_items must be a list")
@@ -265,14 +265,14 @@ def validate_intent_label(label: Dict) -> Tuple[bool, List[str]]:
 
 def get_intent_domain(intent_name: str) -> Optional[str]:
     """
-    Get the top-level domain for a given intent label.
-    Returns None if the intent is not found.
+    获取给定意图标签的顶层领域。
+    如果未找到该意图则返回 None。
     """
     return INTENT_TO_DOMAIN.get(intent_name)
 
 
 def get_taxonomy_summary() -> Dict:
-    """Return a summary of the taxonomy: domains and intent counts."""
+    """返回分类体系摘要：领域和意图数量。"""
     return {
         domain: {
             "description": info["description"],
@@ -285,14 +285,14 @@ def get_taxonomy_summary() -> Dict:
 
 def check_taxonomy_stability() -> List[str]:
     """
-    Check for stability issues in the taxonomy:
-    - No duplicate intent labels across domains
-    - Proper hierarchy (all intents have a domain)
-    - No overlapping or ambiguous definitions
+    检查分类体系的稳定性问题：
+    - 不同领域之间没有重复的意图标签
+    - 层次结构正确（所有意图都有所属领域）
+    - 没有重叠或模糊的定义
     """
     issues = []
 
-    # Check for duplicate intent labels across domains
+    # 检查不同领域之间的重复意图标签
     seen_intents = {}
     for domain, info in INTENT_TAXONOMY.items():
         for intent in info["sub_intents"]:
@@ -303,14 +303,14 @@ def check_taxonomy_stability() -> List[str]:
                 )
             seen_intents[intent] = domain
 
-    # Check that ALL_INTENTS and INTENT_TO_DOMAIN are consistent
+    # 检查 ALL_INTENTS 和 INTENT_TO_DOMAIN 的一致性
     if len(ALL_INTENTS) != len(seen_intents):
         issues.append(
             f"ALL_INTENTS count ({len(ALL_INTENTS)}) differs from "
             f"unique intents ({len(seen_intents)})"
         )
 
-    # Check that all intents in INTENT_TO_DOMAIN are valid
+    # 检查 INTENT_TO_DOMAIN 中的所有意图是否有效
     for intent, domain in INTENT_TO_DOMAIN.items():
         if domain not in INTENT_TAXONOMY:
             issues.append(f"Intent '{intent}' maps to unknown domain '{domain}'")
@@ -325,7 +325,7 @@ def check_taxonomy_stability() -> List[str]:
 
 def get_system_prompt() -> str:
     """
-    Get the system prompt for teacher LLM describing the intent taxonomy.
+    获取描述意图分类体系的教师 LLM 系统提示词。
     """
     domain_lines = []
     for domain, info in INTENT_TAXONOMY.items():
