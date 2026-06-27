@@ -1,0 +1,28 @@
+# MiniMind-Rec LoRA SFT config for item tag generation
+# Reference: MiniMind configs/ for original format
+
+model:
+  name: MiniMind
+  size: 64M  # 64M-100M range
+  max_seq_len: 256
+
+lora:
+  rank: 8
+  alpha: 16
+  dropout: 0.05
+  target_modules: [q_proj, v_proj]
+
+train:
+  lr: 5.0e-5
+  batch_size: 16
+  epochs: 1
+  warmup_steps: 50
+  logging_steps: 10
+  save_steps: 100
+  output_dir: ./checkpoints/tag_lora
+
+data:
+  train_file: ./data/tag_sft/train.jsonl
+  val_file: ./data/tag_sft/val.jsonl
+
+model_path: ./model  # MiniMind base model path
