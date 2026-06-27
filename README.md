@@ -265,7 +265,59 @@ python scripts/slice_intent_eval.py \
 
 ### 面试叙事边界
 
-推荐表述：这是一个“离线 LLM teacher 到轻量 intent student 的蒸馏模块”，线上不调用大模型，只消费 MiniMind 或 MLP 产出的 intent feature。重点是把不可控文本意图压缩成可控 taxonomy 和低延迟特征。
+推荐表述：这是一个”离线 LLM teacher 到轻量 intent student 的蒸馏模块”，线上不调用大模型，只消费 MiniMind 或 MLP 产出的 intent feature。重点是把不可控文本意图压缩成可控 taxonomy 和低延迟特征。
+
+## 算力估算与实验建议
+
+### 最低配置
+
+单卡 **RTX 4090（24GB）** 足够跑完整实验。A100 只在本地跑 7B teacher 推理或赶时间时短租即可。
+
+### 资源估算
+
+| 版本 | 实验范围 | 4090 单卡 | A100 单卡 |
+|------|---------|----------|----------|
+| 最小闭环 | 2k–5k sessions，少量 teacher labels，MiniMind LoRA 小跑，MLP intent head | 4–10 h | 2–6 h |
+| **可投递可信版** | 10k–30k sessions，teacher/MiniMind/MLP 对比，intent F1/ECE/valid rate，下游 HR/NDCG | **15–35 h** | **8–22 h** |
+| 完整实验 | 50k–100k sessions，多 prompt、多 taxonomy、多 student、多 seed | 40–90 h | 25–60 h |
+
+### 隐藏成本（不是 GPU，是标签质量）
+
+```
+taxonomy 是否稳定
+intent 是否过细/过泛
+JSON 是否合法
+teacher label 是否泄漏 target item
+soft label confidence 是否可信
+intent F1 是否能解释
+```
+
+算力不应该烧在大规模训练，而应该烧在：**小样本高质量 teacher label → 标签审计 → intent slice 分析 → MiniMind vs MLP latency 对比**。
+
+### 必须跑的实验
+
+```
+no intent（基线）
+category-majority intent（启发式对照）
+LLM teacher intent（上界）
+MiniMind LoRA intent
+MLP intent head（蒸馏后低延迟路径）
+JSON valid rate / intent F1 / ECE / p95 latency
+short-history / cold-start / session-drift 切片
+```
+
+### 可以砍的实验
+
+- 大规模 teacher label（全部 session 都标）→ 抽样 10–30%
+- 本地跑 7B teacher → API 或小样本离线 label 更划算
+- MiniMind 多尺寸对比 → 固定 1.1B 或 0.5B
+- 多 prompt 大规模 sweep → 固定 prompt template
+
+### 建议跑法
+
+1. **小样本标签验证**（2–5 h）：确认 taxonomy 稳定、teacher label 可用
+2. **主实验**（10–30 h）：10k–30k sessions × MiniMind LoRA + MLP head + 下游对比
+3. **切片分析**（2–5 h）：short-history、cold-start、session-drift
 
 不推荐表述：不要把它说成完整线上 LLM 推荐系统；没有真实 ranker 实验前，也不要声称 intent 一定提升推荐指标。
 
